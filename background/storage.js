@@ -53,6 +53,7 @@ md.storage.defaults = (compilers) => {
       mermaid: false,
       syntax: true,
       toc: false,
+      comments: true,
     },
     origins: {
       'file://': {
@@ -192,5 +193,9 @@ md.storage.migrations = (state) => {
       theme: '',
       color: 'auto'
     }
+  }
+  // v5.3 -> v5.3.1
+  if (state.content.comments === undefined) {
+    state.content.comments = true
   }
 }
