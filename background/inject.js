@@ -24,6 +24,7 @@ md.inject = ({storage: {state}}) => (id) => {
     files: [
       '/content/index.css',
       '/content/themes.css',
+      '/content/comments.css',
     ]
   })
 
@@ -38,6 +39,7 @@ md.inject = ({storage: {state}}) => (id) => {
       '/content/index.js',
       '/content/scroll.js',
       state.content.autoreload && '/content/autoreload.js',
+      '/content/comments.js',
     ].filter(Boolean).flat(),
     injectImmediately: true
   })
