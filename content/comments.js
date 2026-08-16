@@ -39,12 +39,140 @@
       message: 'comments.load',
       url: pageUrl
     }, (res) => {
-      if (res && res.comments) {
-        comments = res.comments
-        renderHighlights()
-        updateBadge()
+      var stored = (res && res.comments) ? res.comments : []
+      var inline = parseInlineComments()
+      comments = mergeComments(stored, inline)
+      if (inline.length > 0 && inline.length !== stored.length) {
+        // Persist merged result so inline comments are editable
+        saveComments()
       }
+      renderHighlights()
+      updateBadge()
     })
+  }
+
+  function parseInlineComments () {
+    // The original <pre> may have been replaced by Mithril's mount.
+    // Try to read it first; if empty, fetch the raw file.
+    var pre = document.querySelector('pre')
+    var source = pre ? (pre.textContent || pre.innerText || '') : ''
+
+    if (source && source.includes('<!-- COMMENT')) {
+      return parseInlineFromSource(source)
+    }
+
+    // If pre is gone or empty, fetch the raw file asynchronously
+    if (location.protocol === 'file:') {
+      chrome.runtime.sendMessage({
+        message: 'autoreload',
+        location: pageUrl
+      }, (res) => {
+        if (res && !res.err && res.body && res.body.includes('<!-- COMMENT')) {
+          var inline = parseInlineFromSource(res.body)
+          if (inline.length > 0) {
+            var storedIds = new Set(comments.map((c) => c.id))
+            var storedAnchors = new Set(comments.map((c) => c.anchor.text + '|||' + c.body))
+            var newOnes = inline.filter((c) => !storedIds.has(c.id) && !storedAnchors.has(c.anchor.text + '|||' + c.body))
+            if (newOnes.length > 0) {
+              comments = comments.concat(newOnes)
+              saveComments()
+              renderHighlights()
+              renderSidebar()
+              updateBadge()
+            }
+          }
+        }
+      })
+    }
+    return []
+  }
+
+  function parseInlineFromSource (source) {
+    var results = []
+    var regex = /<!-- COMMENT(\s*\[RESOLVED\])?: ([\s\S]*?) -->/g
+    var match
+
+    while ((match = regex.exec(source)) !== null) {
+      var resolved = !!match[1]
+      var body = match[2].replace(/—/g, '--')
+
+      var commentStart = match.index
+      var commentEnd = commentStart + match[0].length
+
+      // Grab text before the comment on the same line
+      var beforeChunk = source.substring(Math.max(0, commentStart - 100), commentStart)
+      var lastNewline = beforeChunk.lastIndexOf('\n')
+      var lineBeforeComment = lastNewline >= 0 ? beforeChunk.substring(lastNewline + 1) : beforeChunk
+
+      // Grab text after the comment (up to 50 chars, stop at newline)
+      var afterChunk = source.substring(commentEnd, commentEnd + 50)
+      var firstNewline = afterChunk.indexOf('\n')
+      var lineAfterComment = firstNewline >= 0 ? afterChunk.substring(0, firstNewline) : afterChunk
+
+      // Use text before comment as anchor (strip markdown syntax)
+      var anchorText = lineBeforeComment.replace(/[#*_`>\[\]|]/g, '').trim()
+      if (anchorText.length < 3) {
+        anchorText = lineAfterComment.replace(/[#*_`>\[\]|]/g, '').trim()
+      }
+      if (anchorText.length < 3) continue
+
+      // Prefix for disambiguation
+      var prefixStart = Math.max(0, commentStart - 130)
+      var prefixChunk = source.substring(prefixStart, Math.max(0, commentStart - 100))
+      var prefix = prefixChunk.replace(/[#*_`>\[\]|]/g, '').trim()
+
+      // Find nearest heading above
+      var heading = ''
+      var beforeAll = source.substring(0, commentStart)
+      var headingMatches = beforeAll.match(/^#{1,6}\s+.+$/gm)
+      if (headingMatches) heading = headingMatches[headingMatches.length - 1].replace(/^#+\s*/, '')
+
+      results.push({
+        id: 'inline_' + hashCode(anchorText + body),
+        anchor: {
+          text: anchorText.substring(0, 200),
+          prefix: prefix.substring(0, 30),
+          suffix: lineAfterComment.replace(/[#*_`>\[\]|]/g, '').trim().substring(0, 30),
+          heading: heading
+        },
+        body: body.trim(),
+        author: null,
+        tag: null,
+        severity: null,
+        suggestion: null,
+        replies: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        resolved: resolved,
+        _fromInline: true
+      })
+    }
+    return results
+  }
+
+  function mergeComments (stored, inline) {
+    if (!inline.length) return stored
+    if (!stored.length) return inline
+
+    // Merge: stored comments take priority (user may have edited them)
+    var storedIds = new Set(stored.map((c) => c.id))
+    var newInline = inline.filter((c) => !storedIds.has(c.id))
+
+    // Also check by anchor text to avoid duplicating if ID format differs
+    var storedAnchors = new Set(stored.map((c) => c.anchor.text + '|||' + c.body))
+    var deduped = newInline.filter((c) => !storedAnchors.has(c.anchor.text + '|||' + c.body))
+
+    return stored.concat(deduped)
+  }
+
+  function hashCode (str) {
+    var hash = 0
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charCodeAt(i)
+      hash = ((hash << 5) - hash) + ch
+      hash |= 0
+    }
+    return Math.abs(hash).toString(36)
   }
 
   function saveComments () {
