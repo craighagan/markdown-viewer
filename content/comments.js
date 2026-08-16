@@ -293,7 +293,8 @@
         <div class="_comments-sidebar-actions">
           <button class="_comments-btn-resolve-all" title="Resolve all">✓ All</button>
           <button class="_comments-btn-delete-all" title="Delete all">🗑 All</button>
-          <button class="_comments-btn-export" title="Download comments">⬇</button>
+          <button class="_comments-btn-export-json" title="Download as JSON">⬇ JSON</button>
+          <button class="_comments-btn-export-md" title="Download as Markdown with inline comments">⬇ MD</button>
           <button class="_comments-btn-close" title="Close">✕</button>
         </div>
       </div>
@@ -302,7 +303,8 @@
     document.body.appendChild(sidebar)
 
     sidebar.querySelector('._comments-btn-close').addEventListener('click', hideSidebar)
-    sidebar.querySelector('._comments-btn-export').addEventListener('click', exportComments)
+    sidebar.querySelector('._comments-btn-export-json').addEventListener('click', exportCommentsJson)
+    sidebar.querySelector('._comments-btn-export-md').addEventListener('click', exportCommentsMd)
     sidebar.querySelector('._comments-btn-resolve-all').addEventListener('click', resolveAll)
     sidebar.querySelector('._comments-btn-delete-all').addEventListener('click', deleteAll)
   }
@@ -431,8 +433,7 @@
     renderSidebar()
   }
 
-  function exportComments () {
-    // Derive filename from the URL
+  function exportCommentsJson () {
     var pathParts = new URL(pageUrl).pathname.split('/')
     var filename = (pathParts[pathParts.length - 1] || 'document') + '.comments.json'
 
@@ -440,6 +441,21 @@
       message: 'comments.export',
       url: pageUrl,
       filename: filename
+    })
+  }
+
+  function exportCommentsMd () {
+    var pathParts = new URL(pageUrl).pathname.split('/')
+    var baseFilename = pathParts[pathParts.length - 1] || 'document'
+    // Strip .md extension if present, then add .commented.md
+    var filename = baseFilename.replace(/\.md$/i, '') + '.commented.md'
+
+    // Fetch the raw markdown source
+    chrome.runtime.sendMessage({
+      message: 'comments.export-md',
+      url: pageUrl,
+      filename: filename,
+      comments: comments
     })
   }
 

@@ -67,6 +67,31 @@ md.comments = ({storage: {state}}) => {
       return true
     }
 
+    else if (req.message === 'comments.export-md') {
+      // Fetch the raw markdown source, inject inline HTML comments, download as .md
+      fetch(req.url)
+        .then((res) => res.text())
+        .then((markdown) => {
+          var annotated = injectInlineComments(markdown, req.comments)
+          var blob = new Blob([annotated], {type: 'text/markdown'})
+          var reader = new FileReader()
+          reader.onload = () => {
+            chrome.downloads.download({
+              url: reader.result,
+              filename: req.filename,
+              saveAs: true
+            }, () => {
+              sendResponse({ok: true})
+            })
+          }
+          reader.readAsDataURL(blob)
+        })
+        .catch((err) => {
+          sendResponse({ok: false, error: err.message})
+        })
+      return true
+    }
+
     else if (req.message === 'comments.clear') {
       var key = 'comments:' + req.url
       chrome.storage.local.remove(key, () => {
@@ -74,5 +99,45 @@ md.comments = ({storage: {state}}) => {
       })
       return true
     }
+  }
+
+  function injectInlineComments (markdown, comments) {
+    // Sort comments by position in the source (later first so insertions don't shift offsets)
+    var sorted = comments
+      .filter((c) => c.anchor && c.anchor.text)
+      .map((c) => {
+        var idx = findAnchorInSource(markdown, c.anchor)
+        return {comment: c, idx: idx}
+      })
+      .filter((item) => item.idx >= 0)
+      .sort((a, b) => b.idx - a.idx)
+
+    var result = markdown
+    sorted.forEach((item) => {
+      var c = item.comment
+      var anchorEnd = item.idx + c.anchor.text.length
+      var status = c.resolved ? ' [RESOLVED]' : ''
+      var commentTag = '<!-- COMMENT' + status + ': ' + c.body.replace(/--/g, '—') + ' -->'
+      result = result.substring(0, anchorEnd) + commentTag + result.substring(anchorEnd)
+    })
+
+    return result
+  }
+
+  function findAnchorInSource (markdown, anchor) {
+    // Try exact text match with prefix context
+    if (anchor.prefix) {
+      var withPrefix = anchor.prefix + anchor.text
+      var idx = markdown.indexOf(withPrefix)
+      if (idx >= 0) return idx + anchor.prefix.length
+    }
+    // Try exact text match with suffix context
+    if (anchor.suffix) {
+      var withSuffix = anchor.text + anchor.suffix
+      var idx = markdown.indexOf(withSuffix)
+      if (idx >= 0) return idx
+    }
+    // Fallback: plain text match
+    return markdown.indexOf(anchor.text)
   }
 }
