@@ -291,6 +291,8 @@
       <div class="_comments-sidebar-header">
         <span class="_comments-title">Comments <span class="_comments-badge">0</span></span>
         <div class="_comments-sidebar-actions">
+          <button class="_comments-btn-resolve-all" title="Resolve all">✓ All</button>
+          <button class="_comments-btn-delete-all" title="Delete all">🗑 All</button>
           <button class="_comments-btn-export" title="Download comments">⬇</button>
           <button class="_comments-btn-close" title="Close">✕</button>
         </div>
@@ -301,6 +303,8 @@
 
     sidebar.querySelector('._comments-btn-close').addEventListener('click', hideSidebar)
     sidebar.querySelector('._comments-btn-export').addEventListener('click', exportComments)
+    sidebar.querySelector('._comments-btn-resolve-all').addEventListener('click', resolveAll)
+    sidebar.querySelector('._comments-btn-delete-all').addEventListener('click', deleteAll)
   }
 
   function createToggleButton () {
@@ -405,6 +409,23 @@
 
   function deleteComment (id) {
     comments = comments.filter((c) => c.id !== id)
+    saveComments()
+    renderHighlights()
+    renderSidebar()
+  }
+
+  function resolveAll () {
+    if (!comments.some((c) => !c.resolved)) return
+    comments.forEach((c) => { c.resolved = true })
+    saveComments()
+    renderHighlights()
+    renderSidebar()
+  }
+
+  function deleteAll () {
+    if (!comments.length) return
+    if (!confirm('Delete all ' + comments.length + ' comment(s)?')) return
+    comments = []
     saveComments()
     renderHighlights()
     renderSidebar()
