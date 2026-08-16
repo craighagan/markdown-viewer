@@ -351,6 +351,7 @@
         <div class="_comments-item-meta">
           <span class="_comments-item-date">${formatDate(c.createdAt)}</span>
           <span class="_comments-item-actions">
+            <button class="_comments-btn-edit" data-id="${c.id}">Edit</button>
             ${c.resolved
               ? '<button class="_comments-btn-unresolve" data-id="' + c.id + '">Reopen</button>'
               : '<button class="_comments-btn-resolve" data-id="' + c.id + '">Resolve</button>'
@@ -362,6 +363,9 @@
     `).join('')
 
     // Attach event listeners
+    body.querySelectorAll('._comments-btn-edit').forEach((btn) => {
+      btn.addEventListener('click', () => editComment(btn.dataset.id))
+    })
     body.querySelectorAll('._comments-btn-resolve').forEach((btn) => {
       btn.addEventListener('click', () => resolveComment(btn.dataset.id))
     })
@@ -407,6 +411,59 @@
   function unresolveComment (id) {
     var c = comments.find((c) => c.id === id)
     if (c) { c.resolved = false; saveComments(); renderHighlights(); renderSidebar() }
+  }
+
+  function editComment (id) {
+    var c = comments.find((c) => c.id === id)
+    if (!c) return
+
+    var item = document.querySelector(`._comments-item[data-id="${id}"]`)
+    if (!item) return
+
+    var bodyEl = item.querySelector('._comments-item-body')
+    var original = c.body
+
+    bodyEl.innerHTML = `
+      <textarea class="_comments-edit-textarea">${escapeHtml(original)}</textarea>
+      <div class="_comments-edit-actions">
+        <button class="_comments-edit-save">Save</button>
+        <button class="_comments-edit-cancel">Cancel</button>
+      </div>
+    `
+
+    var textarea = bodyEl.querySelector('textarea')
+    textarea.focus()
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+
+    bodyEl.querySelector('._comments-edit-save').addEventListener('click', () => {
+      var newBody = textarea.value.trim()
+      if (newBody) {
+        c.body = newBody
+        c.updatedAt = new Date().toISOString()
+        saveComments()
+      }
+      renderSidebar()
+    })
+
+    bodyEl.querySelector('._comments-edit-cancel').addEventListener('click', () => {
+      renderSidebar()
+    })
+
+    textarea.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        var newBody = textarea.value.trim()
+        if (newBody) {
+          c.body = newBody
+          c.updatedAt = new Date().toISOString()
+          saveComments()
+        }
+        renderSidebar()
+      }
+      if (e.key === 'Escape') {
+        renderSidebar()
+      }
+    })
   }
 
   function deleteComment (id) {

@@ -172,6 +172,43 @@ mark._comment-highlight._flash {
   margin-bottom: 6px;
 }
 
+._comments-edit-textarea {
+  width: 100%;
+  border: 1px solid var(--comments-sidebar-border, #ddd);
+  border-radius: 4px;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 50px;
+  background: var(--comments-input-bg, #fff);
+  color: var(--comments-sidebar-fg, #333);
+  box-sizing: border-box;
+}
+._comments-edit-textarea:focus {
+  outline: none;
+  border-color: var(--comments-btn-bg, #2563eb);
+}
+._comments-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+._comments-edit-actions button {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid var(--comments-sidebar-border, #ddd);
+  background: none;
+  color: var(--comments-sidebar-fg, #555);
+}
+._comments-edit-actions ._comments-edit-save {
+  background: var(--comments-btn-bg, #2563eb);
+  color: #fff;
+  border: none;
+}
+
 ._comments-item-meta {
   display: flex;
   align-items: center;
