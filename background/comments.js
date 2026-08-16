@@ -92,6 +92,13 @@ md.comments = ({storage: {state}}) => {
       return true
     }
 
+    else if (req.message === 'comments.badge') {
+      var text = req.count > 0 ? String(req.count) : ''
+      chrome.action.setBadgeText({text: text, tabId: sender.tab.id})
+      chrome.action.setBadgeBackgroundColor({color: '#2563eb', tabId: sender.tab.id})
+      return false
+    }
+
     else if (req.message === 'comments.clear') {
       var key = 'comments:' + req.url
       chrome.storage.local.remove(key, () => {
