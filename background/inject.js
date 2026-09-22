@@ -22,7 +22,11 @@ md.inject = ({storage: {state}}) => (id) => {
       icon: state.settings.icon,
     }],
     func: (_args) => {
-      document.querySelector('pre').style.visibility = 'hidden'
+      // Guard: detect.js can fire inject() more than once per tab (multiple
+      // 'loading' events race the window.state check), and on the reload
+      // path the <pre> may not be present yet. Neither case should throw.
+      var pre = document.querySelector('pre')
+      if (pre) pre.style.visibility = 'hidden'
       args = _args
     },
     injectImmediately: true

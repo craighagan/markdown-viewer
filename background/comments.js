@@ -1,11 +1,20 @@
 md.comments = ({storage: {state}}) => {
 
-  // Register context menu
-  chrome.contextMenus.create({
-    id: 'markdown-viewer-add-comment',
-    title: 'Add Comment',
-    contexts: ['selection'],
-    documentUrlPatterns: ['file:///*']
+  // Register context menu. In an MV3 service worker this code re-runs on
+  // every worker wake, and contextMenus.create() with a fixed id throws
+  // "Cannot create item with duplicate id" on the second and later wakes.
+  // That throw would abort the background startup before the message and
+  // injection listeners register, breaking rendering and settings. Remove
+  // any existing item first so creation is idempotent, and swallow the
+  // benign lastError on the create callback as a belt-and-suspenders guard.
+  chrome.contextMenus.removeAll(() => {
+    void chrome.runtime.lastError
+    chrome.contextMenus.create({
+      id: 'markdown-viewer-add-comment',
+      title: 'Add Comment',
+      contexts: ['selection'],
+      documentUrlPatterns: ['file:///*']
+    }, () => { void chrome.runtime.lastError })
   })
 
   // Handle context menu click

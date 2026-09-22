@@ -1,4 +1,15 @@
 ;(() => {
+  // Guard against being injected twice into the same document. detect.js
+  // dedupes index.js via its window.state check, but all state in this file
+  // is closure-private, and inject.js runs it as an independent script entry,
+  // so nothing else prevents a second copy. A second run would spin up an
+  // independent instance: a second Mithril app on the same root, a second set
+  // of keyboard/selection/context-menu listeners (every action fires twice),
+  // and a second MutationObserver re-applying highlights on top of the first.
+  // Mark the document on first run and bail on any later run.
+  if (window.__markdownViewerCommentsLoaded) return
+  window.__markdownViewerCommentsLoaded = true
+
   // ─── STATE ────────────────────────────────────────────────────
 
   var comments = []
@@ -1110,16 +1121,30 @@
 
   // ─── BOOT ─────────────────────────────────────────────────────
 
-  var bootAttempts = 0
-  var bootInterval = setInterval(() => {
-    if (document.getElementById('_html') || document.getElementById('_markdown')) {
-      clearInterval(bootInterval)
-      init()
-      return
-    }
-    if (++bootAttempts > 50) { // ~5s cap
-      clearInterval(bootInterval)
-      console.warn('[comments] gave up waiting for #_html/#_markdown to render')
-    }
-  }, 100)
+  // Boot once index.js has rendered the content root. Do not poll on a
+  // timer: the render waits on a round-trip to the background compiler, and
+  // on a cold MV3 service worker that has to load the markdown compilers
+  // first, so it has no bounded latency (observed >5s on a 12KB file). A
+  // fixed poll budget silently dropped the comments UI in that case. Observe
+  // body for the element instead; this fires the instant Mithril inserts it
+  // and needs no timeout. Check synchronously first in case it already exists.
+  var contentRoot = () =>
+    document.getElementById('_html') || document.getElementById('_markdown')
+
+  if (contentRoot()) {
+    init()
+  }
+  else {
+    // Observe documentElement, not body: this script is injected with
+    // injectImmediately, so document.body may not exist yet, and observing a
+    // null target would throw and abort this whole file. documentElement is
+    // present from the first byte; subtree catches the insertion into body.
+    var bootObserver = new MutationObserver(() => {
+      if (contentRoot()) {
+        bootObserver.disconnect()
+        init()
+      }
+    })
+    bootObserver.observe(document.documentElement, {childList: true, subtree: true})
+  }
 })()
