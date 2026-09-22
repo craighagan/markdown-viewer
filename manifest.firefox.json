@@ -75,7 +75,9 @@
 
   "permissions": [
     "storage",
-    "scripting"
+    "scripting",
+    "contextMenus",
+    "downloads"
   ],
 
   "host_permissions": [
