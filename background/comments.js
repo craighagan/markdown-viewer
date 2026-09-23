@@ -3,29 +3,41 @@ md.comments = ({storage: {state}}) => {
   // Register context menu. In an MV3 service worker this code re-runs on
   // every worker wake, and contextMenus.create() with a fixed id throws
   // "Cannot create item with duplicate id" on the second and later wakes.
-  // That throw would abort the background startup before the message and
-  // injection listeners register, breaking rendering and settings. Remove
-  // any existing item first so creation is idempotent, and swallow the
-  // benign lastError on the create callback as a belt-and-suspenders guard.
-  chrome.contextMenus.removeAll(() => {
-    void chrome.runtime.lastError
-    chrome.contextMenus.create({
-      id: 'markdown-viewer-add-comment',
-      title: 'Add Comment',
-      contexts: ['selection'],
-      documentUrlPatterns: ['file:///*']
-    }, () => { void chrome.runtime.lastError })
-  })
+  // Also, chrome.contextMenus can be undefined in the background context
+  // (observed in Firefox for a temporary add-on even with the permission
+  // declared). Because md.comments() is constructed BEFORE index.js
+  // registers the onMessage/onUpdated listeners, any throw here aborts the
+  // whole background startup and no listeners register — which surfaces as
+  // "Could not establish connection. Receiving end does not exist", blank
+  // settings, and files rendering as raw. The context menu is optional, so
+  // guard the entire block: never let it break listener registration.
+  if (chrome.contextMenus) {
+    try {
+      chrome.contextMenus.removeAll(() => {
+        void chrome.runtime.lastError
+        chrome.contextMenus.create({
+          id: 'markdown-viewer-add-comment',
+          title: 'Add Comment',
+          contexts: ['selection'],
+          documentUrlPatterns: ['file:///*']
+        }, () => { void chrome.runtime.lastError })
+      })
 
-  // Handle context menu click
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === 'markdown-viewer-add-comment') {
-      chrome.tabs.sendMessage(tab.id, {
-        message: 'comments.add-from-menu',
-        selectionText: info.selectionText
+      // Handle context menu click
+      chrome.contextMenus.onClicked.addListener((info, tab) => {
+        if (info.menuItemId === 'markdown-viewer-add-comment') {
+          chrome.tabs.sendMessage(tab.id, {
+            message: 'comments.add-from-menu',
+            selectionText: info.selectionText
+          })
+        }
       })
     }
-  })
+    catch (err) {
+      // contextMenus unavailable — skip the menu, keep the background alive
+      console.warn('[markdown-viewer] context menu unavailable:', err && err.message)
+    }
+  }
 
   // Handle comment storage messages
   return (req, sender, sendResponse) => {
